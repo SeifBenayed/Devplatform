@@ -105,6 +105,54 @@ The app handles various error scenarios:
 - API failures
 - Server errors
 
+## Deployment
+
+This application can be deployed to multiple platforms:
+
+### ☁️ Azure Static Web Apps (Recommended for Static + Serverless)
+- **Frontend**: Static files served via CDN
+- **Backend**: Azure Functions (serverless)
+- **Free Tier**: 100 GB bandwidth/month
+- **Setup Time**: 5-10 minutes
+- 📖 **[Full Azure Deployment Guide →](AZURE_DEPLOYMENT.md)**
+
+### 🚂 Railway / Render (Recommended for Full Node.js Server)
+- **Type**: Full Node.js server deployment
+- **Free Tier**: Available on both
+- **Setup Time**: 5 minutes
+- 📖 **[Other Deployment Options →](DEPLOYMENT.md)**
+
+### Quick Deployment Options:
+
+| Platform | Type | Free Tier | Best For |
+|----------|------|-----------|----------|
+| **Azure Static Web Apps** | Static + Serverless | ✅ Yes | Production, global CDN |
+| **Railway** | Node.js Server | ✅ Yes | Quick deployment, dev/prod |
+| **Render** | Node.js Server | ✅ Yes | Similar to Railway |
+| **AWS Amplify** | Static only | ✅ Yes | ❌ Won't work (needs backend) |
+| **Heroku** | Node.js Server | ❌ $5/month | Traditional hosting |
+
+**Quick Start:**
+- For Azure: See [AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md)
+- For others: See [DEPLOYMENT.md](DEPLOYMENT.md)
+
+## Project Structure (Azure Static Web Apps Version)
+
+```
+Devplatform/
+├── api/                          # Azure Functions backend
+│   ├── upload/
+│   │   ├── function.json        # Function config
+│   │   └── index.js             # Upload handler
+│   ├── host.json                # Functions runtime
+│   └── package.json             # API dependencies
+├── public/                       # Static frontend
+│   └── index.html
+├── staticwebapp.config.json     # Azure SWA config
+├── server.js                    # Express server (for local/Railway)
+└── package.json
+```
+
 ## License
 
 See LICENSE file for details.
