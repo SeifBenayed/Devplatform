@@ -1,0 +1,30 @@
+# ⚠️ WARNING: AWS Amplify is NOT suitable for this application
+# This is a Node.js server app that requires a running backend.
+# AWS Amplify is designed for static sites or SSR frameworks (Next.js, Nuxt).
+#
+# Please see DEPLOYMENT.md for recommended deployment options:
+# - Railway (recommended)
+# - Render
+# - AWS Elastic Beanstalk
+# - Heroku
+#
+# This configuration will only deploy the static frontend files,
+# but the backend API will NOT work without the server running.
+
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci
+    build:
+      commands:
+        - echo "⚠️ WARNING: This deploys only static files. Backend will not work!"
+        - echo "See DEPLOYMENT.md for proper deployment options."
+  artifacts:
+    baseDirectory: public
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*
