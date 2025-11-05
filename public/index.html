@@ -612,7 +612,26 @@
 
             let html = '';
 
-            // 1. Main Decision Banner
+            // 1. Visualizations First (Heatmap Only)
+            if (result.forensics && result.forensics.forensic_analysis && result.forensics.forensic_analysis.document_tampering) {
+                const dt = result.forensics.forensic_analysis.document_tampering;
+                if (dt.visualizations && dt.visualizations.heatmap) {
+                    console.log('Heatmap data type:', typeof dt.visualizations.heatmap);
+                    console.log('Heatmap data sample:', dt.visualizations.heatmap.substring(0, 50));
+                    console.log('Heatmap data length:', dt.visualizations.heatmap.length);
+
+                    html += `
+                        <div class="card">
+                            <div class="card-title">🖼️ Document Analysis Heatmap</div>
+                            <div class="viz-grid">
+                                ${createImageElement(dt.visualizations.heatmap, 'Heatmap', 'Tampering Heatmap')}
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            // 2. Main Decision Banner
             if (result.decision) {
                 const decision = result.decision;
                 const decisionClass = decision.decision || 'review';
@@ -760,9 +779,7 @@
                                 <div class="indicator-title">${ai.binary_label || 'Unknown'}</div>
                                 <span class="badge ${ai.prediction === 1 ? 'high' : 'low'}">${ai.prediction === 1 ? 'AI-GENERATED' : 'HUMAN-CREATED'}</span>
                             </div>
-                            <div class="progress-bar">
-                                <div class="progress-fill" style="width: ${(ai.confidence * 100)}%">${(ai.confidence * 100).toFixed(2)}%</div>
-                            </div>
+
                             <div class="indicator-details">Model: ${ai.model || 'N/A'}</div>
                         </div>
                     </div>
@@ -821,6 +838,52 @@
             header.classList.toggle('active');
             const content = header.nextElementSibling;
             content.classList.toggle('active');
+        }
+
+        function cleanBase64(base64String) {
+            if (!base64String) return '';
+            // Remove any whitespace, newlines, etc.
+            return base64String.replace(/\s/g, '');
+        }
+
+        function createImageElement(base64Data, altText, labelText) {
+            if (!base64Data) return '';
+
+            const cleanedBase64 = cleanBase64(base64Data);
+
+            // Check if already has data URL prefix
+            let imageDataUrl;
+            if (cleanedBase64.startsWith('data:')) {
+                // Already has the data URL prefix, use as-is
+                imageDataUrl = cleanedBase64;
+                console.log(`Image ${labelText}: Using existing data URL, size=${cleanedBase64.length} bytes`);
+            } else {
+                // Need to add prefix, detect format
+                let format = 'png';
+                if (cleanedBase64.startsWith('/9j/')) {
+                    format = 'jpeg';
+                } else if (cleanedBase64.startsWith('iVBORw0KGgo')) {
+                    format = 'png';
+                }
+                imageDataUrl = `data:image/${format};base64,${cleanedBase64}`;
+                console.log(`Image ${labelText}: Added ${format} prefix, size=${cleanedBase64.length} bytes`);
+            }
+
+            return `
+                <div class="viz-item">
+                    <img src="${imageDataUrl}"
+                         alt="${altText}"
+                         onload="console.log('✓ Loaded: ${labelText}');"
+                         onerror="console.error('✗ Failed: ${labelText}'); this.style.display='none'; this.nextElementSibling.nextElementSibling.style.display='block';"
+                         style="max-width: 100%; height: auto;">
+                    <div class="viz-label">${labelText}</div>
+                    <div style="display:none; color: #f44336; font-size: 12px; margin-top: 5px;">
+                        Failed to load image<br>
+                        Size: ${cleanedBase64.length} bytes<br>
+                        <button onclick="navigator.clipboard.writeText('${cleanedBase64.substring(0, 100)}'); alert('First 100 chars copied!');" style="margin-top: 5px; padding: 5px; font-size: 11px;">Copy Base64 Preview</button>
+                    </div>
+                </div>
+            `;
         }
 
         function addForensicAnalysisSection(result) {
@@ -972,24 +1035,9 @@
                                 <div style="margin-top: 20px;">
                                     <div class="info-label" style="margin-bottom: 15px;">Visualizations</div>
                                     <div class="viz-grid">
-                                        ${dt.visualizations.original ? `
-                                            <div class="viz-item">
-                                                <img src="data:image/png;base64,${dt.visualizations.original}" alt="Original Image">
-                                                <div class="viz-label">Original Image</div>
-                                            </div>
-                                        ` : ''}
-                                        ${dt.visualizations.heatmap ? `
-                                            <div class="viz-item">
-                                                <img src="data:image/png;base64,${dt.visualizations.heatmap}" alt="Heatmap">
-                                                <div class="viz-label">Heatmap</div>
-                                            </div>
-                                        ` : ''}
-                                        ${dt.visualizations.mask ? `
-                                            <div class="viz-item">
-                                                <img src="data:image/png;base64,${dt.visualizations.mask}" alt="Mask">
-                                                <div class="viz-label">Mask</div>
-                                            </div>
-                                        ` : ''}
+                                        ${createImageElement(dt.visualizations.original, 'Original Image', 'Original Image')}
+                                        ${createImageElement(dt.visualizations.heatmap, 'Heatmap', 'Heatmap')}
+                                        ${createImageElement(dt.visualizations.mask, 'Mask', 'Mask')}
                                     </div>
                                 </div>
                             ` : ''}
