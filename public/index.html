@@ -850,6 +850,7 @@
             if (!base64Data) return '';
 
             const cleanedBase64 = cleanBase64(base64Data);
+            const imgId = 'img_' + Math.random().toString(36).substring(7);
 
             // Check if already has data URL prefix
             let imageDataUrl;
@@ -869,18 +870,32 @@
                 console.log(`Image ${labelText}: Added ${format} prefix, size=${cleanedBase64.length} bytes`);
             }
 
+            // Set the image source after DOM is ready to avoid HTML escaping issues
+            setTimeout(() => {
+                const img = document.getElementById(imgId);
+                if (img) {
+                    try {
+                        img.src = imageDataUrl;
+                    } catch (e) {
+                        console.error(`Failed to set image src for ${labelText}:`, e);
+                        img.style.display = 'none';
+                        const errorDiv = img.parentElement.querySelector('.img-error');
+                        if (errorDiv) errorDiv.style.display = 'block';
+                    }
+                }
+            }, 0);
+
             return `
                 <div class="viz-item">
-                    <img src="${imageDataUrl}"
+                    <img id="${imgId}"
                          alt="${altText}"
                          onload="console.log('✓ Loaded: ${labelText}');"
-                         onerror="console.error('✗ Failed: ${labelText}'); this.style.display='none'; this.nextElementSibling.nextElementSibling.style.display='block';"
+                         onerror="console.error('✗ Failed: ${labelText}'); this.style.display='none'; this.parentElement.querySelector('.img-error').style.display='block';"
                          style="max-width: 100%; height: auto;">
                     <div class="viz-label">${labelText}</div>
-                    <div style="display:none; color: #f44336; font-size: 12px; margin-top: 5px;">
+                    <div class="img-error" style="display:none; color: #f44336; font-size: 12px; margin-top: 5px;">
                         Failed to load image<br>
-                        Size: ${cleanedBase64.length} bytes<br>
-                        <button onclick="navigator.clipboard.writeText('${cleanedBase64.substring(0, 100)}'); alert('First 100 chars copied!');" style="margin-top: 5px; padding: 5px; font-size: 11px;">Copy Base64 Preview</button>
+                        Size: ${cleanedBase64.length} bytes
                     </div>
                 </div>
             `;
