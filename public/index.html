@@ -590,16 +590,19 @@
                 console.log('Response status:', response.status);
                 console.log('Response ok:', response.ok);
 
-                // Check response status BEFORE parsing JSON
+                // Read response body once (can only be read once!)
+                const responseText = await response.text();
+                console.log('Response received, size:', responseText.length, 'bytes');
+
+                // Check response status and handle errors
                 if (!response.ok) {
-                    let errorMessage = 'Upload failed';
+                    let errorMessage = `Server error (${response.status})`;
                     try {
-                        const errorData = await response.json();
+                        const errorData = JSON.parse(responseText);
                         errorMessage = errorData.error || errorData.details || errorMessage;
                     } catch (e) {
-                        // If JSON parsing fails, try to get text
-                        const errorText = await response.text();
-                        errorMessage = errorText || `Server error (${response.status})`;
+                        // If JSON parsing fails, use raw text
+                        errorMessage = responseText.substring(0, 200) || errorMessage;
                     }
                     throw new Error(errorMessage);
                 }
@@ -607,16 +610,22 @@
                 // Parse JSON with error handling
                 let data;
                 try {
-                    const responseText = await response.text();
-                    console.log('Response received, size:', responseText.length, 'bytes');
                     data = JSON.parse(responseText);
                     console.log('JSON parsed successfully');
                 } catch (parseError) {
                     console.error('JSON Parse Error:', parseError);
+                    console.error('Response preview:', responseText.substring(0, 500));
                     throw new Error('Failed to parse server response. The response may be incomplete or corrupted.');
                 }
 
-                showResults(data);
+                // Render results with error handling
+                try {
+                    showResults(data);
+                } catch (renderError) {
+                    console.error('Render error:', renderError);
+                    console.error('Error stack:', renderError.stack);
+                    throw new Error('Failed to display results: ' + renderError.message);
+                }
             } catch (err) {
                 console.error('Upload error:', err);
                 showError('Error: ' + err.message);
@@ -627,13 +636,17 @@
         });
 
         function showResults(data) {
+            console.log('showResults called with data:', data);
+
             const result = data.result;
             if (!result) {
+                console.warn('No result in data');
                 resultsContent.innerHTML = '<div class="card"><p>No analysis results available</p></div>';
                 results.classList.add('show');
                 return;
             }
 
+            console.log('Result keys:', Object.keys(result));
             let html = '';
 
             // 1. Visualizations First (Heatmap Only)
@@ -657,31 +670,38 @@
 
             // 2. Main Decision Banner
             if (result.decision) {
-                const decision = result.decision;
-                const decisionClass = decision.decision || 'review';
-                const riskScore = (decision.risk_score * 100).toFixed(1);
-                const confidence = (decision.confidence * 100).toFixed(0);
+                try {
+                    const decision = result.decision;
+                    const decisionClass = decision.decision || 'review';
+                    const riskScore = decision.risk_score != null ? (decision.risk_score * 100).toFixed(1) : '0.0';
+                    const confidence = decision.confidence != null ? (decision.confidence * 100).toFixed(0) : '0';
 
-                html += `
-                    <div class="decision-banner ${decisionClass}">
-                        <div class="decision-title">${getDecisionIcon(decisionClass)} ${decisionClass.toUpperCase()}</div>
-                        <div class="decision-subtitle">${decision.decision_reason || 'No reason provided'}</div>
-                        <div class="risk-score-container">
-                            <div class="score-item">
-                                <div class="score-label">Risk Score</div>
-                                <div class="score-value">${riskScore}%</div>
-                            </div>
-                            <div class="score-item">
-                                <div class="score-label">Confidence</div>
-                                <div class="score-value">${confidence}%</div>
-                            </div>
-                            <div class="score-item">
-                                <div class="score-label">Document Format</div>
-                                <div class="score-value">${decision.document_format || 'N/A'}</div>
+                    console.log('Rendering decision banner:', decisionClass, riskScore, confidence);
+
+                    html += `
+                        <div class="decision-banner ${decisionClass}">
+                            <div class="decision-title">${getDecisionIcon(decisionClass)} ${decisionClass.toUpperCase()}</div>
+                            <div class="decision-subtitle">${decision.decision_reason || 'No reason provided'}</div>
+                            <div class="risk-score-container">
+                                <div class="score-item">
+                                    <div class="score-label">Risk Score</div>
+                                    <div class="score-value">${riskScore}%</div>
+                                </div>
+                                <div class="score-item">
+                                    <div class="score-label">Confidence</div>
+                                    <div class="score-value">${confidence}%</div>
+                                </div>
+                                <div class="score-item">
+                                    <div class="score-label">Document Format</div>
+                                    <div class="score-value">${decision.document_format || 'N/A'}</div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                `;
+                    `;
+                } catch (decisionError) {
+                    console.error('Error rendering decision banner:', decisionError);
+                }
+            }
 
                 // 2. Key Indicators
                 if (decision.key_indicators && decision.key_indicators.length > 0) {
