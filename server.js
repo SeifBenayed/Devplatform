@@ -60,7 +60,11 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       rejectUnauthorized: false
     });
 
-    // Send to external API
+    // Send to external API with timeout
+    console.log('Sending file to API:', req.file.originalname);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+
     const response = await fetch('https://40.119.130.55/analyze', {
       method: 'POST',
       headers: {
@@ -68,14 +72,20 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         ...formData.getHeaders()
       },
       body: formData,
-      agent: httpsAgent
+      agent: httpsAgent,
+      signal: controller.signal
     });
 
-    // Clean up uploaded file
-    fs.unlinkSync(req.file.path);
+    clearTimeout(timeout);
 
+    // Check response status first
     if (!response.ok) {
       const errorText = await response.text();
+      console.error('API Error Response:', response.status, errorText);
+
+      // Clean up uploaded file
+      fs.unlinkSync(req.file.path);
+
       return res.status(response.status).json({
         error: 'API request failed',
         details: errorText,
@@ -83,7 +93,54 @@ app.post('/upload', upload.single('file'), async (req, res) => {
       });
     }
 
-    const result = await response.json();
+    // Get response text first to inspect it
+    let responseText;
+    try {
+      responseText = await response.text();
+      console.log('API Response received, length:', responseText.length);
+      console.log('Response preview (first 200 chars):', responseText.substring(0, 200));
+    } catch (textError) {
+      console.error('Error reading response text:', textError.message);
+
+      // Clean up uploaded file
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+
+      return res.status(500).json({
+        error: 'Failed to read API response',
+        details: textError.message
+      });
+    }
+
+    // Clean up uploaded file
+    fs.unlinkSync(req.file.path);
+
+    // Check if response is empty
+    if (!responseText || responseText.trim().length === 0) {
+      console.error('Empty response from API');
+      return res.status(500).json({
+        error: 'Empty response from API',
+        details: 'API returned no data'
+      });
+    }
+
+    // Try to parse JSON
+    let result;
+    try {
+      result = JSON.parse(responseText);
+      console.log('JSON parsed successfully, result keys:', Object.keys(result));
+    } catch (parseError) {
+      console.error('JSON Parse Error:', parseError.message);
+      console.error('Response text preview:', responseText.substring(0, 500));
+      console.error('Response text end:', responseText.substring(responseText.length - 100));
+      return res.status(500).json({
+        error: 'Invalid JSON response from API',
+        details: parseError.message,
+        preview: responseText.substring(0, 200)
+      });
+    }
+
     res.json(result);
 
   } catch (error) {

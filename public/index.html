@@ -587,14 +587,38 @@
                     body: formData
                 });
 
-                const data = await response.json();
+                console.log('Response status:', response.status);
+                console.log('Response ok:', response.ok);
 
+                // Check response status BEFORE parsing JSON
                 if (!response.ok) {
-                    throw new Error(data.error || 'Upload failed');
+                    let errorMessage = 'Upload failed';
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error || errorData.details || errorMessage;
+                    } catch (e) {
+                        // If JSON parsing fails, try to get text
+                        const errorText = await response.text();
+                        errorMessage = errorText || `Server error (${response.status})`;
+                    }
+                    throw new Error(errorMessage);
+                }
+
+                // Parse JSON with error handling
+                let data;
+                try {
+                    const responseText = await response.text();
+                    console.log('Response received, size:', responseText.length, 'bytes');
+                    data = JSON.parse(responseText);
+                    console.log('JSON parsed successfully');
+                } catch (parseError) {
+                    console.error('JSON Parse Error:', parseError);
+                    throw new Error('Failed to parse server response. The response may be incomplete or corrupted.');
                 }
 
                 showResults(data);
             } catch (err) {
+                console.error('Upload error:', err);
                 showError('Error: ' + err.message);
             } finally {
                 uploadBtn.disabled = false;
