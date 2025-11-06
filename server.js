@@ -41,8 +41,8 @@ const upload = multer({
 // Serve static files
 app.use(express.static('public'));
 
-// File upload endpoint
-app.post('/upload', upload.single('file'), async (req, res) => {
+// File upload endpoint (matches Azure Functions route)
+app.post('/api/upload', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
