@@ -26,8 +26,10 @@
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             padding: 40px;
-            max-width: 600px;
+            max-width: 1200px;
             width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
         }
 
         h1 {
@@ -698,66 +700,66 @@
                             </div>
                         </div>
                     `;
+
+                    // Key Indicators (inside decision block)
+                    if (decision.key_indicators && decision.key_indicators.length > 0) {
+                        html += '<div class="card"><div class="card-title">🚨 Key Indicators</div>';
+                        decision.key_indicators.forEach(indicator => {
+                            html += `
+                                <div class="indicator-card ${indicator.severity}">
+                                    <div class="indicator-header">
+                                        <div>
+                                            <span class="badge ${indicator.severity}">${indicator.severity.toUpperCase()}</span>
+                                            <span class="badge info">${indicator.type}</span>
+                                        </div>
+                                    </div>
+                                    <div class="indicator-details">${indicator.message}</div>
+                                </div>
+                            `;
+                        });
+                        html += '</div>';
+                    }
+
+                    // Score Breakdown (inside decision block)
+                    if (decision.score_breakdown) {
+                        const sb = decision.score_breakdown;
+                        html += `
+                            <div class="card">
+                                <div class="card-title">📊 Score Breakdown</div>
+                                <div class="info-item">
+                                    <div class="info-label">Forensic Score (Weight: ${sb.forensic_weight})</div>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: ${(sb.forensic_score * 100)}%">${(sb.forensic_score * 100).toFixed(1)}%</div>
+                                    </div>
+                                    <div class="info-value">Contribution: ${(sb.forensic_contribution * 100).toFixed(1)}%</div>
+                                </div>
+                                <div class="info-item" style="margin-top: 15px;">
+                                    <div class="info-label">Deduplication Score (Weight: ${sb.deduplication_weight})</div>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: ${(sb.deduplication_score * 100)}%">${(sb.deduplication_score * 100).toFixed(1)}%</div>
+                                    </div>
+                                    <div class="info-value">Contribution: ${(sb.deduplication_contribution * 100).toFixed(1)}%</div>
+                                </div>
+                                <div class="grid-2" style="margin-top: 15px;">
+                                    <div class="info-item">
+                                        <div class="info-label">Accept Threshold</div>
+                                        <div class="info-value">${(decision.thresholds_used.accept * 100).toFixed(0)}%</div>
+                                    </div>
+                                    <div class="info-item">
+                                        <div class="info-label">Review Threshold</div>
+                                        <div class="info-value">${(decision.thresholds_used.review * 100).toFixed(0)}%</div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
                 } catch (decisionError) {
                     console.error('Error rendering decision banner:', decisionError);
                 }
             }
 
-                // 2. Key Indicators
-                if (decision.key_indicators && decision.key_indicators.length > 0) {
-                    html += '<div class="card"><div class="card-title">🚨 Key Indicators</div>';
-                    decision.key_indicators.forEach(indicator => {
-                        html += `
-                            <div class="indicator-card ${indicator.severity}">
-                                <div class="indicator-header">
-                                    <div>
-                                        <span class="badge ${indicator.severity}">${indicator.severity.toUpperCase()}</span>
-                                        <span class="badge info">${indicator.type}</span>
-                                    </div>
-                                </div>
-                                <div class="indicator-details">${indicator.message}</div>
-                            </div>
-                        `;
-                    });
-                    html += '</div>';
-                }
-
-                // Score Breakdown
-                if (decision.score_breakdown) {
-                    const sb = decision.score_breakdown;
-                    html += `
-                        <div class="card">
-                            <div class="card-title">📊 Score Breakdown</div>
-                            <div class="info-item">
-                                <div class="info-label">Forensic Score (Weight: ${sb.forensic_weight})</div>
-                                <div class="progress-bar">
-                                    <div class="progress-fill" style="width: ${(sb.forensic_score * 100)}%">${(sb.forensic_score * 100).toFixed(1)}%</div>
-                                </div>
-                                <div class="info-value">Contribution: ${(sb.forensic_contribution * 100).toFixed(1)}%</div>
-                            </div>
-                            <div class="info-item" style="margin-top: 15px;">
-                                <div class="info-label">Deduplication Score (Weight: ${sb.deduplication_weight})</div>
-                                <div class="progress-bar">
-                                    <div class="progress-fill" style="width: ${(sb.deduplication_score * 100)}%">${(sb.deduplication_score * 100).toFixed(1)}%</div>
-                                </div>
-                                <div class="info-value">Contribution: ${(sb.deduplication_contribution * 100).toFixed(1)}%</div>
-                            </div>
-                            <div class="grid-2" style="margin-top: 15px;">
-                                <div class="info-item">
-                                    <div class="info-label">Accept Threshold</div>
-                                    <div class="info-value">${(decision.thresholds_used.accept * 100).toFixed(0)}%</div>
-                                </div>
-                                <div class="info-item">
-                                    <div class="info-label">Review Threshold</div>
-                                    <div class="info-value">${(decision.thresholds_used.review * 100).toFixed(0)}%</div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                }
-            }
-
             // 3. Document Overview
+            const processingTime = result.processing_time_ms != null ? (result.processing_time_ms / 1000).toFixed(2) + 's' : 'N/A';
             html += `
                 <div class="card">
                     <div class="card-title">📄 Document Overview</div>
@@ -772,7 +774,7 @@
                         </div>
                         <div class="info-item">
                             <div class="info-label">Processing Time</div>
-                            <div class="info-value">${(result.processing_time_ms / 1000).toFixed(2)}s</div>
+                            <div class="info-value">${processingTime}</div>
                         </div>
                         <div class="info-item">
                             <div class="info-label">Pipeline Version</div>
@@ -781,6 +783,7 @@
             `;
 
             if (result.routing) {
+                const routingConfidence = result.routing.confidence != null ? (result.routing.confidence * 100).toFixed(0) : 'N/A';
                 html += `
                         <div class="info-item">
                             <div class="info-label">Document Type</div>
@@ -796,7 +799,7 @@
                         </div>
                         <div class="info-item">
                             <div class="info-label">Confidence</div>
-                            <div class="info-value">${(result.routing.confidence * 100).toFixed(0)}%</div>
+                            <div class="info-value">${routingConfidence}${routingConfidence !== 'N/A' ? '%' : ''}</div>
                         </div>
                 `;
             }
@@ -834,21 +837,23 @@
             if (result.forensics && result.forensics.suspicious_indicators && result.forensics.suspicious_indicators.length > 0) {
                 html += '<div class="card"><div class="card-title">⚠️ Suspicious Indicators</div>';
                 result.forensics.suspicious_indicators.forEach(indicator => {
+                    const indicatorScore = indicator.score != null ? (indicator.score * 100).toFixed(1) : '0.0';
+                    const indicatorWidth = indicator.score != null ? (indicator.score * 100) : 0;
                     html += `
                         <div class="expandable">
                             <div class="expandable-header" onclick="toggleExpandable(this)">
                                 <div>
-                                    <span class="badge ${indicator.severity}">${indicator.severity.toUpperCase()}</span>
-                                    <span class="badge info">${indicator.type}</span>
-                                    <span style="margin-left: 10px;">${indicator.details}</span>
+                                    <span class="badge ${indicator.severity || 'medium'}">${(indicator.severity || 'medium').toUpperCase()}</span>
+                                    <span class="badge info">${indicator.type || 'Unknown'}</span>
+                                    <span style="margin-left: 10px;">${indicator.details || 'No details'}</span>
                                 </div>
                                 <span class="expandable-icon">▼</span>
                             </div>
                             <div class="expandable-content">
                                 <div class="progress-bar">
-                                    <div class="progress-fill" style="width: ${(indicator.score * 100)}%">${(indicator.score * 100).toFixed(1)}%</div>
+                                    <div class="progress-fill" style="width: ${indicatorWidth}%">${indicatorScore}%</div>
                                 </div>
-                                <pre style="background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; font-size: 12px;">${JSON.stringify(indicator.evidence, null, 2)}</pre>
+                                ${indicator.evidence ? `<pre style="background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; font-size: 12px;">${JSON.stringify(indicator.evidence, null, 2)}</pre>` : '<p style="color: #999;">No evidence data available</p>'}
                             </div>
                         </div>
                     `;
@@ -1201,7 +1206,7 @@
                                 </div>
                                 <div class="info-item">
                                     <div class="info-label">Deduplication Score</div>
-                                    <div class="info-value">${(dedup.deduplication_score * 100).toFixed(1)}%</div>
+                                    <div class="info-value">${dedup.deduplication_score != null ? (dedup.deduplication_score * 100).toFixed(1) + '%' : 'N/A'}</div>
                                 </div>
                             </div>
                         </div>
@@ -1242,11 +1247,14 @@
             // Fraud Network
             if (dedup.fraud_network) {
                 const fn = dedup.fraud_network;
+                const fnRiskScore = fn.risk_score != null ? fn.risk_score : 0;
+                const fnRiskPercent = (fnRiskScore * 100).toFixed(0);
+                const fnRiskLevel = fnRiskScore > 0.5 ? 'high' : fnRiskScore > 0.3 ? 'medium' : 'low';
                 html += `
                     <div class="expandable">
                         <div class="expandable-header" onclick="toggleExpandable(this)">
                             <span>🕸️ Fraud Network Analysis</span>
-                            <span class="badge ${fn.risk_score > 0.5 ? 'high' : fn.risk_score > 0.3 ? 'medium' : 'low'}">Risk: ${(fn.risk_score * 100).toFixed(0)}%</span>
+                            <span class="badge ${fnRiskLevel}">Risk: ${fnRiskPercent}%</span>
                             <span class="expandable-icon">▼</span>
                         </div>
                         <div class="expandable-content">
@@ -1262,7 +1270,7 @@
                                 <div class="info-item">
                                     <div class="info-label">Network Risk Score</div>
                                     <div class="progress-bar">
-                                        <div class="progress-fill" style="width: ${(fn.risk_score * 100)}%">${(fn.risk_score * 100).toFixed(1)}%</div>
+                                        <div class="progress-fill" style="width: ${fnRiskScore * 100}%">${(fnRiskScore * 100).toFixed(1)}%</div>
                                     </div>
                                 </div>
                             </div>
