@@ -802,6 +802,23 @@
                             <div class="info-value">${routingConfidence}${routingConfidence !== 'N/A' ? '%' : ''}</div>
                         </div>
                 `;
+
+                // Add extracted text if available
+                if (result.routing.extracted_text) {
+                    html += `
+                        <div class="info-item" style="grid-column: 1 / -1; margin-top: 10px;">
+                            <div class="expandable">
+                                <div class="expandable-header" onclick="toggleExpandable(this)">
+                                    <span>📝 Extracted Text</span>
+                                    <span class="expandable-icon">▼</span>
+                                </div>
+                                <div class="expandable-content">
+                                    <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; font-family: 'Segoe UI', sans-serif; font-size: 13px; line-height: 1.6;">${result.routing.extracted_text}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
             }
 
             if (result.forensics && result.forensics.file_hash) {
