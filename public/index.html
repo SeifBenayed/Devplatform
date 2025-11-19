@@ -651,20 +651,49 @@
             console.log('Result keys:', Object.keys(result));
             let html = '';
 
-            // 1. Visualizations First (Heatmap Only)
-            if (result.forensics && result.forensics.forensic_analysis && result.forensics.forensic_analysis.document_tampering) {
-                const dt = result.forensics.forensic_analysis.document_tampering;
-                if (dt.visualizations && dt.visualizations.heatmap) {
-                    console.log('Heatmap data type:', typeof dt.visualizations.heatmap);
-                    console.log('Heatmap data sample:', dt.visualizations.heatmap.substring(0, 50));
-                    console.log('Heatmap data length:', dt.visualizations.heatmap.length);
+            // 1. Visualizations First (Priority-based)
+            const documentFormat = result.routing?.document_format || '';
+            const isPDF = documentFormat.startsWith('PDF_');
 
+            if (result.forensics && result.forensics.forensic_analysis) {
+                let visualizationHtml = '';
+                let visualizationTitle = '';
+
+                if (isPDF) {
+                    // PDF: Priority 1 - Visual proofs from pdf_structure
+                    const pdfStructure = result.forensics.forensic_analysis.pdf_structure;
+                    if (pdfStructure && pdfStructure.visual_proofs && pdfStructure.visual_proofs.length > 0) {
+                        visualizationTitle = '📄 PDF Modification Visual Proofs';
+                        visualizationHtml = '<div class="viz-grid">';
+                        pdfStructure.visual_proofs.forEach((proof, index) => {
+                            if (proof.image) {
+                                visualizationHtml += createImageElement(proof.image, `Visual Proof ${index + 1}`, proof.description || `Visual Proof ${index + 1}`);
+                            }
+                        });
+                        visualizationHtml += '</div>';
+                    }
+                    // PDF: Priority 2 - DTD heatmap
+                    else if (result.forensics.forensic_analysis.document_tampering?.visualizations?.heatmap) {
+                        visualizationTitle = '📄 Document Tampering Detection Heatmap';
+                        const heatmap = result.forensics.forensic_analysis.document_tampering.visualizations.heatmap;
+                        visualizationHtml = `<div class="viz-grid">${createImageElement(heatmap, 'DTD Heatmap', 'Tampering Heatmap')}</div>`;
+                    }
+                    // PDF: Priority 3 - PDF preview (if we have file_path or similar)
+                    // TODO: Implement PDF preview if needed
+                } else {
+                    // IMAGE: Show heatmap
+                    const dt = result.forensics.forensic_analysis.document_tampering;
+                    if (dt && dt.visualizations && dt.visualizations.heatmap) {
+                        visualizationTitle = '🖼️ Document Analysis Heatmap';
+                        visualizationHtml = `<div class="viz-grid">${createImageElement(dt.visualizations.heatmap, 'Heatmap', 'Tampering Heatmap')}</div>`;
+                    }
+                }
+
+                if (visualizationHtml) {
                     html += `
                         <div class="card">
-                            <div class="card-title">🖼️ Document Analysis Heatmap</div>
-                            <div class="viz-grid">
-                                ${createImageElement(dt.visualizations.heatmap, 'Heatmap', 'Tampering Heatmap')}
-                            </div>
+                            <div class="card-title">${visualizationTitle}</div>
+                            ${visualizationHtml}
                         </div>
                     `;
                 }
@@ -835,16 +864,20 @@
             // 4. AI Detection Results
             if (result.forensics && result.forensics.forensic_analysis && result.forensics.forensic_analysis.ai_detection) {
                 const ai = result.forensics.forensic_analysis.ai_detection;
+                const isAiGenerated = ai.is_ai_generated || ai.prediction === 1;
+                const aiModel = ai.model_used || ai.model || 'N/A';
+                const aiLabel = ai.binary_label || (isAiGenerated ? 'AI-GENERATED' : 'HUMAN-CREATED');
+
                 html += `
                     <div class="card">
                         <div class="card-title">🤖 AI Detection</div>
-                        <div class="indicator-card ${ai.prediction === 1 ? 'high' : 'low'}">
+                        <div class="indicator-card ${isAiGenerated ? 'high' : 'low'}">
                             <div class="indicator-header">
-                                <div class="indicator-title">${ai.binary_label || 'Unknown'}</div>
-                                <span class="badge ${ai.prediction === 1 ? 'high' : 'low'}">${ai.prediction === 1 ? 'AI-GENERATED' : 'HUMAN-CREATED'}</span>
+                                <div class="indicator-title">${aiLabel}</div>
+                                <span class="badge ${isAiGenerated ? 'high' : 'low'}">${isAiGenerated ? 'AI-GENERATED' : 'HUMAN-CREATED'}</span>
                             </div>
-
-                            <div class="indicator-details">Model: ${ai.model || 'N/A'}</div>
+                            <div class="indicator-details">Model: ${aiModel}</div>
+                            ${ai.processing_time_ms ? `<div class="indicator-details">Processing Time: ${(ai.processing_time_ms / 1000).toFixed(2)}s</div>` : ''}
                         </div>
                     </div>
                 `;

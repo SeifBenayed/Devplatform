@@ -41,7 +41,11 @@ module.exports = async function (context, req) {
             rejectUnauthorized: false
         });
 
-        // Forward to external API
+        // Forward to external API with timeout
+        const AbortController = require('abort-controller');
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 600000); // 10 minute timeout
+
         const response = await fetch('https://40.119.130.55/analyze', {
             method: 'POST',
             headers: {
@@ -49,8 +53,11 @@ module.exports = async function (context, req) {
                 ...formData.getHeaders()
             },
             body: formData,
-            agent: httpsAgent
+            agent: httpsAgent,
+            signal: controller.signal
         });
+
+        clearTimeout(timeout);
 
         // Get response text
         const responseText = await response.text();
