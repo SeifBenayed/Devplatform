@@ -42,9 +42,21 @@ module.exports = async function (context, req) {
         });
 
         // Forward to external API with timeout
+        context.log('=== API CALL START ===');
+        context.log('Timestamp:', new Date().toISOString());
+        context.log('File Details:', JSON.stringify({
+            name: fileData.filename,
+            size: fileData.buffer.length,
+            mimetype: fileData.mimetype
+        }));
+
+        const startTime = Date.now();
         const AbortController = require('abort-controller');
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 1800000); // 30 minute timeout
+        const timeout = setTimeout(() => {
+            context.log.error('REQUEST TIMEOUT - Aborting after 30 minutes');
+            controller.abort();
+        }, 1800000); // 30 minute timeout
 
         const response = await fetch('https://40.119.130.55/analyze', {
             method: 'POST',
@@ -58,14 +70,29 @@ module.exports = async function (context, req) {
         });
 
         clearTimeout(timeout);
+        const duration = Date.now() - startTime;
+        context.log(`API Call Duration: ${duration}ms (${(duration/1000).toFixed(2)}s)`);
 
         // Get response text
         const responseText = await response.text();
-        context.log(`API Response received, length: ${responseText.length}`);
 
         // Check if response is OK
         if (!response.ok) {
-            context.log.error(`API Error: ${response.status}`);
+            context.log.error('=== API ERROR RESPONSE ===');
+            context.log.error('HTTP Status:', response.status, response.statusText);
+            context.log.error('Response Headers:', JSON.stringify([...response.headers.entries()], null, 2));
+            context.log.error('Error Body:', responseText);
+            context.log.error('Error Body Length:', responseText.length);
+            context.log.error('Error Body Type:', typeof responseText);
+
+            // Try to parse error as JSON for more details
+            try {
+                const errorJson = JSON.parse(responseText);
+                context.log.error('Parsed Error JSON:', JSON.stringify(errorJson, null, 2));
+            } catch (e) {
+                context.log.error('Error body is not valid JSON');
+            }
+
             context.res = {
                 status: response.status,
                 body: {
@@ -76,6 +103,14 @@ module.exports = async function (context, req) {
             };
             return;
         }
+
+        // Success response logging
+        context.log('=== API SUCCESS RESPONSE ===');
+        context.log('HTTP Status:', response.status, response.statusText);
+        context.log('Response Headers:', JSON.stringify([...response.headers.entries()], null, 2));
+        context.log('Response Body Length:', responseText.length, 'bytes');
+        context.log('Response Preview (first 200 chars):', responseText.substring(0, 200));
+        context.log('Response End (last 100 chars):', responseText.substring(Math.max(0, responseText.length - 100)));
 
         // Parse JSON response
         let result;
@@ -103,12 +138,29 @@ module.exports = async function (context, req) {
         };
 
     } catch (error) {
-        context.log.error('Error:', error);
+        context.log.error('=== CAUGHT EXCEPTION ===');
+        context.log.error('Error Type:', error.name);
+        context.log.error('Error Message:', error.message);
+        context.log.error('Error Code:', error.code);
+        context.log.error('Error Stack:', error.stack);
+
+        // Log abort-specific errors
+        if (error.name === 'AbortError') {
+            context.log.error('Request was aborted (likely timeout)');
+        }
+
+        // Log network errors
+        if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT') {
+            context.log.error('Network error - external API may be unreachable');
+        }
+
         context.res = {
             status: 500,
             body: {
                 error: 'Server error',
-                details: error.message
+                details: error.message,
+                errorType: error.name,
+                errorCode: error.code
             }
         };
     }

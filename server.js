@@ -61,9 +61,21 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     });
 
     // Send to external API with timeout
-    console.log('Sending file to API:', req.file.originalname);
+    console.log('=== API CALL START ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('File Details:', {
+      name: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+      path: req.file.path
+    });
+
+    const startTime = Date.now();
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 1800000); // 30 minute timeout
+    const timeout = setTimeout(() => {
+      console.error('REQUEST TIMEOUT - Aborting after 30 minutes');
+      controller.abort();
+    }, 1800000); // 30 minute timeout
 
     const response = await fetch('https://40.119.130.55/analyze', {
       method: 'POST',
@@ -77,11 +89,26 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     });
 
     clearTimeout(timeout);
+    const duration = Date.now() - startTime;
+    console.log(`API Call Duration: ${duration}ms (${(duration/1000).toFixed(2)}s)`);
 
     // Check response status first
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('API Error Response:', response.status, errorText);
+      console.error('=== API ERROR RESPONSE ===');
+      console.error('HTTP Status:', response.status, response.statusText);
+      console.error('Response Headers:', JSON.stringify([...response.headers.entries()], null, 2));
+      console.error('Error Body:', errorText);
+      console.error('Error Body Length:', errorText.length);
+      console.error('Error Body Type:', typeof errorText);
+
+      // Try to parse error as JSON for more details
+      try {
+        const errorJson = JSON.parse(errorText);
+        console.error('Parsed Error JSON:', JSON.stringify(errorJson, null, 2));
+      } catch (e) {
+        console.error('Error body is not valid JSON');
+      }
 
       // Clean up uploaded file
       fs.unlinkSync(req.file.path);
@@ -97,10 +124,17 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     let responseText;
     try {
       responseText = await response.text();
-      console.log('API Response received, length:', responseText.length);
-      console.log('Response preview (first 200 chars):', responseText.substring(0, 200));
+      console.log('=== API SUCCESS RESPONSE ===');
+      console.log('HTTP Status:', response.status, response.statusText);
+      console.log('Response Headers:', JSON.stringify([...response.headers.entries()], null, 2));
+      console.log('Response Body Length:', responseText.length, 'bytes');
+      console.log('Response Preview (first 200 chars):', responseText.substring(0, 200));
+      console.log('Response End (last 100 chars):', responseText.substring(Math.max(0, responseText.length - 100)));
     } catch (textError) {
-      console.error('Error reading response text:', textError.message);
+      console.error('=== ERROR READING RESPONSE ===');
+      console.error('Error Type:', textError.name);
+      console.error('Error Message:', textError.message);
+      console.error('Error Stack:', textError.stack);
 
       // Clean up uploaded file
       if (req.file && fs.existsSync(req.file.path)) {
@@ -144,7 +178,21 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error('=== CAUGHT EXCEPTION ===');
+    console.error('Error Type:', error.name);
+    console.error('Error Message:', error.message);
+    console.error('Error Code:', error.code);
+    console.error('Error Stack:', error.stack);
+
+    // Log abort-specific errors
+    if (error.name === 'AbortError') {
+      console.error('Request was aborted (likely timeout)');
+    }
+
+    // Log network errors
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT') {
+      console.error('Network error - external API may be unreachable');
+    }
 
     // Clean up file if it exists
     if (req.file && fs.existsSync(req.file.path)) {
@@ -153,7 +201,9 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 
     res.status(500).json({
       error: 'Server error',
-      details: error.message
+      details: error.message,
+      errorType: error.name,
+      errorCode: error.code
     });
   }
 });
