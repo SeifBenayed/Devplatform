@@ -5,6 +5,7 @@ const fetch = require('node-fetch');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
+const sharp = require('sharp');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -43,16 +44,66 @@ app.use(express.static('public'));
 
 // File upload endpoint (matches Azure Functions route)
 app.post('/api/upload', upload.single('file'), async (req, res) => {
+  let fileToSend = null;
+  let filenameToSend = null;
+  let mimetypeToSend = null;
+
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
+    // Compress image if needed (> 1MB)
+    fileToSend = req.file.path;
+    filenameToSend = req.file.originalname;
+    mimetypeToSend = req.file.mimetype;
+    const isImage = req.file.mimetype === 'image/png' || req.file.mimetype === 'image/jpeg';
+    const originalSize = req.file.size;
+    const oneMB = 1 * 1024 * 1024;
+
+    if (isImage && originalSize > oneMB) {
+      console.log('=== IMAGE COMPRESSION START ===');
+      console.log('Original size:', (originalSize / 1024 / 1024).toFixed(2), 'MB');
+
+      try {
+        const compressionStartTime = Date.now();
+        const compressedPath = req.file.path + '-compressed.jpg';
+
+        // Compress image: resize to max 1920px, convert to JPEG quality 90%
+        await sharp(req.file.path)
+          .resize(1920, 1920, {
+            fit: 'inside',
+            withoutEnlargement: true
+          })
+          .jpeg({ quality: 90 })
+          .toFile(compressedPath);
+
+        const compressedStats = fs.statSync(compressedPath);
+        const compressedSize = compressedStats.size;
+        const compressionTime = Date.now() - compressionStartTime;
+
+        console.log('Compressed size:', (compressedSize / 1024 / 1024).toFixed(2), 'MB');
+        console.log('Compression ratio:', ((originalSize - compressedSize) / originalSize * 100).toFixed(1), '%');
+        console.log('Compression time:', compressionTime, 'ms');
+        console.log('=== IMAGE COMPRESSION COMPLETE ===');
+
+        // Use compressed file
+        fileToSend = compressedPath;
+        filenameToSend = req.file.originalname.replace(/\.(png|jpeg|jpg)$/i, '.jpg');
+        mimetypeToSend = 'image/jpeg';
+      } catch (compressionError) {
+        console.error('=== IMAGE COMPRESSION FAILED ===');
+        console.error('Error:', compressionError.message);
+        console.log('Proceeding with original file');
+        // Continue with original file if compression fails
+      }
+    }
+
     // Create form data for external API
     const formData = new FormData();
-    formData.append('file', fs.createReadStream(req.file.path), {
-      filename: req.file.originalname,
-      contentType: req.file.mimetype
+    formData.append('file', fs.createReadStream(fileToSend), {
+      filename: filenameToSend,
+      contentType: mimetypeToSend
     });
 
     // Create custom HTTPS agent that accepts self-signed certificates
@@ -110,8 +161,11 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         console.error('Error body is not valid JSON');
       }
 
-      // Clean up uploaded file
+      // Clean up uploaded files
       fs.unlinkSync(req.file.path);
+      if (fileToSend !== req.file.path && fs.existsSync(fileToSend)) {
+        fs.unlinkSync(fileToSend);
+      }
 
       return res.status(response.status).json({
         error: 'API request failed',
@@ -136,9 +190,12 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       console.error('Error Message:', textError.message);
       console.error('Error Stack:', textError.stack);
 
-      // Clean up uploaded file
+      // Clean up uploaded files
       if (req.file && fs.existsSync(req.file.path)) {
         fs.unlinkSync(req.file.path);
+      }
+      if (fileToSend !== req.file.path && fs.existsSync(fileToSend)) {
+        fs.unlinkSync(fileToSend);
       }
 
       return res.status(500).json({
@@ -147,8 +204,11 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       });
     }
 
-    // Clean up uploaded file
+    // Clean up uploaded files
     fs.unlinkSync(req.file.path);
+    if (fileToSend !== req.file.path && fs.existsSync(fileToSend)) {
+      fs.unlinkSync(fileToSend);
+    }
 
     // Check if response is empty
     if (!responseText || responseText.trim().length === 0) {
@@ -194,9 +254,12 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       console.error('Network error - external API may be unreachable');
     }
 
-    // Clean up file if it exists
+    // Clean up files if they exist
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
+    }
+    if (fileToSend !== req.file.path && fs.existsSync(fileToSend)) {
+      fs.unlinkSync(fileToSend);
     }
 
     res.status(500).json({
