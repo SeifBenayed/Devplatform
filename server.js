@@ -63,7 +63,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     // Send to external API with timeout
     console.log('Sending file to API:', req.file.originalname);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 600000); // 10 minute timeout
+    const timeout = setTimeout(() => controller.abort(), 1800000); // 30 minute timeout
 
     const response = await fetch('https://40.119.130.55/analyze', {
       method: 'POST',
