@@ -2,6 +2,7 @@ const https = require('https');
 const fetch = require('node-fetch');
 const FormData = require('form-data');
 const Busboy = require('busboy');
+const AbortController = require('abort-controller');
 
 module.exports = async function (context, req) {
     context.log('Upload function triggered');
@@ -51,12 +52,11 @@ module.exports = async function (context, req) {
         }));
 
         const startTime = Date.now();
-        const AbortController = require('abort-controller');
         const controller = new AbortController();
         const timeout = setTimeout(() => {
-            context.log.error('REQUEST TIMEOUT - Aborting after 30 minutes');
+            context.log.error('REQUEST TIMEOUT - Aborting after 9 minutes');
             controller.abort();
-        }, 1800000); // 30 minute timeout
+        }, 540000); // 9 minute timeout
 
         const response = await fetch('https://40.119.130.55/analyze', {
             method: 'POST',
