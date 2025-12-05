@@ -2,7 +2,6 @@ const https = require('https');
 const fetch = require('node-fetch');
 const FormData = require('form-data');
 const Busboy = require('busboy');
-const sharp = require('sharp');
 
 module.exports = async function (context, req) {
     context.log('Upload function triggered');
@@ -30,55 +29,11 @@ module.exports = async function (context, req) {
 
         context.log(`Processing file: ${fileData.filename}`);
 
-        // Compress image if needed (> 1MB)
-        let bufferToSend = fileData.buffer;
-        let filenameToSend = fileData.filename;
-        let mimetypeToSend = fileData.mimetype;
-        const isImage = fileData.mimetype === 'image/png' || fileData.mimetype === 'image/jpeg';
-        const originalSize = fileData.buffer.length;
-        const oneMB = 1 * 1024 * 1024;
-
-        if (isImage && originalSize > oneMB) {
-            context.log('=== IMAGE COMPRESSION START ===');
-            context.log('Original size:', (originalSize / 1024 / 1024).toFixed(2), 'MB');
-
-            try {
-                const compressionStartTime = Date.now();
-
-                // Compress image: resize to max 1920px, convert to JPEG quality 90%
-                const compressedBuffer = await sharp(fileData.buffer)
-                    .resize(1920, 1920, {
-                        fit: 'inside',
-                        withoutEnlargement: true
-                    })
-                    .jpeg({ quality: 90 })
-                    .toBuffer();
-
-                const compressedSize = compressedBuffer.length;
-                const compressionTime = Date.now() - compressionStartTime;
-
-                context.log('Compressed size:', (compressedSize / 1024 / 1024).toFixed(2), 'MB');
-                context.log('Compression ratio:', ((originalSize - compressedSize) / originalSize * 100).toFixed(1), '%');
-                context.log('Compression time:', compressionTime, 'ms');
-                context.log('=== IMAGE COMPRESSION COMPLETE ===');
-
-                // Use compressed buffer
-                bufferToSend = compressedBuffer;
-                filenameToSend = fileData.filename.replace(/\.(png|jpeg|jpg)$/i, '.jpg');
-                mimetypeToSend = 'image/jpeg';
-            } catch (compressionError) {
-                context.log.error('=== IMAGE COMPRESSION FAILED ===');
-                context.log.error('Error:', compressionError.message);
-                context.log('Proceeding with original file');
-                // Continue with original buffer if compression fails
-            }
-        }
-
         // Create form data for external API
         const formData = new FormData();
-        formData.append('file', bufferToSend, {
-            filename: filenameToSend,
-            contentType: mimetypeToSend
+        formData.append('file', fileData.buffer, {
+            filename: fileData.filename,
+            contentType: fileData.mimetype
         });
 
         // Create HTTPS agent that accepts self-signed certificates
